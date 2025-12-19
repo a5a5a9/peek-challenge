@@ -37,4 +37,4 @@ sleep 15
 echo "Deploying the Voting App Claim..."
 kubectl apply -f ./p33k-challenge/crossplane/app/myvotingapp.yaml
 
-echo "Installation complete. Check status with 'kubectl get managed'
+echo "Installation complete. Check status with 'kubectl get managed'"
