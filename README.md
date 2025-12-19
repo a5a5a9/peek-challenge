@@ -37,14 +37,15 @@ Make sure you have the following installed:
 ## Repository Structure
 
 ```text
-.
-├── kind/                  # kind cluster configuration
-├── crossplane/            # Crossplane platform definitions
-│   ├── install/           # Crossplane providers
-│   ├── platform/          # XRD + Composition
-│   └── app/               # Application claim
-├── apps/                  # Application source code
-└── README.md
+
+peek-challenge/
+└── p33k-challenge/
+│    └── crossplane/
+│    ├── build_and_load.sh
+│    ├── kind-config.yaml
+│    └── setup-kind-cluster.sh
+ deploy-crossplane-stack.sh
+ README.md
 
 
 # Setup
@@ -79,6 +80,18 @@ Make sure you have the following installed:
 
 ./peek-challenge$ git clone https://github.com/gadabout/devops-challenge
 
+You folder structure should look like this
+
+├── peek-challenge/                  
+    ├── p33k-challenge/            
+    │   ├── crossplane/        # Crossplane platform
+    │   
+    ├── devops-challenge/      # Application source code
+    └── README.md
+
+
+
+
 ## Create the Kubernetes Cluster (Kind)
 
 This project uses **kind** to provide a fast and reproducible local Kubernetes environment.
@@ -99,7 +112,13 @@ This project uses **kind** to provide a fast and reproducible local Kubernetes e
 
 peek-challenge$./deploy-crossplane-stack.sh
 
-This script "deploy-crossplane-stack.sh"  will deploy everything. After is completed continue with "Test UI App" Phase.
+This script "deploy-crossplane-stack.sh"  will deploy everything. 
+After is completed continue with "Test UI App" Phase.
+
+
+
+
+
 
 ## Manually entering kubectl commands:
 
