@@ -1,0 +1,305 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: votingapp
+spec:
+  compositeTypeRef:
+    apiVersion: demo.p33k.io/v1alpha1
+    kind: XVotingApp
+  mode: Pipeline
+  pipeline:
+    - step: patch-and-transform
+      functionRef:
+        name: function-patch-and-transform
+      input:
+        apiVersion: pt.fn.crossplane.io/v1beta1
+        kind: Resources
+        resources:
+       
+          - name: ui
+            base:
+              apiVersion: kubernetes.crossplane.io/v1alpha1
+              kind: Object
+              spec:
+                providerConfigRef:
+                  name: default
+                forProvider:
+                  manifest:
+                    apiVersion: apps/v1
+                    kind: Deployment
+                    metadata:
+                      name: voting-ui
+                      namespace: default  
+                      labels:
+                        app: voting-ui
+                    spec:
+                      replicas: 1
+                      selector:
+                        matchLabels:
+                          app: voting-ui
+                      template:
+                        metadata:
+                          namespace: default
+                          labels:
+                            app: voting-ui
+                        spec:
+                          containers:
+                            - name: ui
+                              image: nginx
+                              ports:
+                                - containerPort: 4000
+                              imagePullPolicy: IfNotPresent
+                              env:
+                                - name: VOTES_API_HOST
+                                  value: votes-api
+                                - name: VOTES_API_PORT
+                                  value: "80"
+                                - name: PORT
+                                  value: "4000"
+            patches:
+              - fromFieldPath: spec.parameters.ui.image
+                toFieldPath: spec.forProvider.manifest.spec.template.spec.containers[0].image
+                # transforms:
+                #   - type: string
+                #     string:
+                #       type: Format
+                #       fmt: "%s-ui" 
+
+
+    
+          - name: api
+            base:
+              apiVersion: kubernetes.crossplane.io/v1alpha1
+              kind: Object
+              spec:
+                providerConfigRef:
+                  name: default
+                forProvider:
+                  manifest:
+                    apiVersion: apps/v1
+                    kind: Deployment
+                    metadata:
+                      name: voting-api
+                      namespace: default
+                      labels:
+                        app: voting-api
+                    spec:
+                      replicas: 1
+                      selector:
+                        matchLabels:
+                          app: voting-api
+                      template:
+                        metadata:
+                          labels:
+                            app: voting-api
+                        spec:
+                          containers:
+                            - name: api
+                              image: nginx
+                              imagePullPolicy: IfNotPresent
+                              readinessProbe:
+                                httpGet:
+                                  path: /healthz
+                                  port: 5000
+                                initialDelaySeconds: 15
+                              ports:
+                                - containerPort: 5000
+                              env:
+                                - name: POSTGRES_HOST
+                                  value: voting-postgres
+                                - name: POSTGRES_USER
+                                  value: postgres
+                                - name: POSTGRES_PASSWORD
+                                  value: postgres
+                                - name: POSTGRES_DB
+                                  value: postgres 
+                                - name: PORT
+                                  value: "5000"
+                                - name: OPTION_A
+                                  value: "Cats"
+                                - name: OPTION_B
+                                  value: "Dogs"         
+            patches:
+              - fromFieldPath: spec.parameters.api.image
+                toFieldPath: spec.forProvider.manifest.spec.template.spec.containers[0].image
+                # transforms:
+                #   - type: string
+                #     string:
+                #       type: Format
+                #       fmt: "%s-api" 
+ 
+
+
+          - name: api-service
+            base:
+              apiVersion: kubernetes.crossplane.io/v1alpha1
+              kind: Object
+              spec:
+                providerConfigRef:
+                  name: default
+                forProvider:
+                  manifest:
+                    apiVersion: v1
+                    kind: Service
+                    metadata:
+                      namespace: default
+                      name: votes-api
+                    spec:
+                      type: ClusterIP
+                      selector:
+                        app: voting-api
+                      ports:
+                        - port: 80
+                          targetPort: 5000
+
+ 
+          - name: postgres-pvc
+            base:
+              apiVersion: kubernetes.crossplane.io/v1alpha1
+              kind: Object
+              spec:
+                providerConfigRef:
+                  name: default
+                forProvider:
+                  manifest:
+                    apiVersion: v1
+                    kind: PersistentVolumeClaim
+                    metadata:
+                      namespace: default
+                      name: voting-postgres-pvc
+                    spec:
+                      accessModes: [ReadWriteOnce]
+                      resources:
+                        requests:
+                          storage: 1Gi
+            patches:
+              - fromFieldPath: spec.parameters.postgres.storageGB
+                toFieldPath: spec.forProvider.manifest.spec.resources.requests.storage
+                transforms:
+                  - type: convert
+                    convert:
+                      toType: string
+                  - type: string
+                    string:
+                      type: Format
+                      fmt: "%sGi"
+                policy:
+                  fromFieldPath: Required
+
+
+
+          - name: postgres-init-config
+            base:
+              apiVersion: kubernetes.crossplane.io/v1alpha1
+              kind: Object
+              spec:
+                forProvider:
+                  manifest:
+                    apiVersion: v1
+                    kind: ConfigMap
+                    metadata:
+                      name: postgres-init-sql
+                      namespace: default
+                    data:
+                      init.sql: |
+                  
+                        CREATE TABLE IF NOT EXISTS vote (
+                            id VARCHAR(255) NOT NULL UNIQUE,
+                            vote VARCHAR(255) NOT NULL
+                        );
+                        DROP TABLE IF EXISTS votes;
+                        CREATE VIEW votes AS SELECT * FROM vote;
+
+          - name: postgres-deployment
+            base:
+              apiVersion: kubernetes.crossplane.io/v1alpha1
+              kind: Object
+              spec:
+                providerConfigRef:
+                  name: default
+                forProvider:
+                  manifest:
+                    apiVersion: apps/v1
+                    kind: Deployment
+                    metadata:
+                      namespace: default
+                      name: voting-postgres
+                    spec:
+                      selector:
+                        matchLabels:
+                          app: voting-postgres
+                      template:
+                        metadata:
+                          labels:
+                            namespace: default
+                            app: voting-postgres
+                        spec:
+                          containers:
+                            - name: postgres
+                              image: postgres:15
+                              volumeMounts:
+                               - name: init-sql
+                                 mountPath: /docker-entrypoint-initdb.d
+                                 
+                              env:
+                                - name: POSTGRES_PASSWORD
+                                  value: postgres
+                              ports:
+                                - containerPort: 5432
+                              volumeMounts:
+                                - name: postgres-db
+                                  mountPath: /var/lib/postgresql/data
+                          volumes:
+                            - name: postgres-db
+                              persistentVolumeClaim:
+                                claimName: voting-postgres-pvc
+                            - name: init-sql
+                              configMap:
+                                 name: postgres-init-sql
+
+
+          - name: postgres-service
+            base:
+              apiVersion: kubernetes.crossplane.io/v1alpha1
+              kind: Object
+              spec:
+                providerConfigRef:
+                  name: default
+                forProvider:
+                  manifest:
+                    apiVersion: v1
+                    kind: Service
+                    metadata:
+                      namespace: default
+                      name: voting-postgres
+                    spec:
+                      type: ClusterIP
+                      selector:
+                        app: voting-postgres
+                      ports:
+                        - port: 5432
+                          targetPort: 5432
+
+
+          - name: ui-service
+            base:
+              apiVersion: kubernetes.crossplane.io/v1alpha1
+              kind: Object
+              spec:
+                providerConfigRef:
+                  name: default
+                forProvider:
+                  manifest:
+                    apiVersion: v1
+                    kind: Service
+                    metadata:
+                      namespace: default
+                      name: vote
+                    spec:
+                      type: NodePort
+                      selector:
+                        app: voting-ui
+                      ports:
+                        - port: 80        # Port inside the cluster
+                          targetPort: 4000 # App js listens on this port
+                          nodePort: 30000 # Port in the browser

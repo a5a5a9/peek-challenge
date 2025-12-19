@@ -1,0 +1,17 @@
+apiVersion: demo.p33k.io/v1alpha1
+kind: VotingApp 
+metadata:
+  name: my-votingapp
+  namespace: default
+spec:
+  parameters: 
+    ui:
+      image: votes-ui:latest
+    api:
+      image: votes-api:latest
+    postgres:
+      storageGB: 1
+
+
+
+

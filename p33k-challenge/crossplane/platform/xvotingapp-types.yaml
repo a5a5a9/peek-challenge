@@ -1,0 +1,47 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: CompositeResourceDefinition
+metadata:
+  name: xvotingapps.demo.p33k.io
+spec:
+  group: demo.p33k.io
+  names:
+    kind: XVotingApp
+    plural: xvotingapps
+  claimNames:
+    kind: VotingApp
+    plural: votingapps
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                parameters:
+                  type: object
+                  properties:
+                    ui:
+                      type: object
+                      properties:
+                        image:
+                          type: string
+                    api:
+                      type: object
+                      properties:
+                        image:
+                          type: string
+                    postgres:
+                      type: object
+                      properties:
+                        storageGB:
+                          type: integer
+                  required:
+                    - ui
+                    - api
+                    - postgres
+              required:
+                - parameters
